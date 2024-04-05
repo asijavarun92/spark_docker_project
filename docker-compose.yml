@@ -1,0 +1,59 @@
+version: '3.8'
+services:
+  spark:
+    image: docker.io/bitnami/spark:3.5.0
+    volumes:
+      - type: bind
+        source: ./data
+        target: /opt/data
+    environment:
+      - SPARK_MODE=master
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+    ports:
+      - '7077:7077'
+      - '18080:8080'
+  spark-worker:
+    image: docker.io/bitnami/spark:3.5.0
+    deploy:
+      replicas: 1
+    volumes:
+      - type: bind
+        source: ./data
+        target: /opt/data
+    environment:
+      - SPARK_MODE=worker
+      - SPARK_MASTER_URL=spark://spark:7077
+      - SPARK_WORKER_MEMORY=1G
+      - SPARK_WORKER_CORES=1
+      - SPARK_RPC_AUTHENTICATION_ENABLED=no
+      - SPARK_RPC_ENCRYPTION_ENABLED=no
+      - SPARK_LOCAL_STORAGE_ENCRYPTION_ENABLED=no
+      - SPARK_SSL_ENABLED=no
+  db:
+    image: postgres:latest
+    container_name: postgres_db
+    restart: always
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_DB=warehouse
+      - POSTGRES_PASSWORD=admin123
+    ports:
+      - '5432:5432'
+    volumes:
+      - ./sql_scripts/db-init.sql:/docker-entrypoint-initdb.d/db-init.sql
+      - postgres_db:/var/lib/postgresql/data
+  etl:
+    image: python:3.10-slim
+    container_name: etl-pipeline
+    build:
+      dockerfile: ./dockerfile
+      context: .
+    depends_on:
+      - spark
+      - spark-worker
+      - db
+volumes:
+  postgres_db:
